@@ -1,0 +1,152 @@
+trigger: none
+
+# pr:
+#   branches:
+#     include:
+#       - main
+#       - features/*
+
+pool:
+  name: infrapool
+
+variables:
+  - name: Work_Dir
+    value: '$(System.DefaultWorkingDirectory)/linuxvm/parent_module'
+
+  - name: Service_Connection
+    value: infraconnection
+
+stages:
+
+# ------------------------------------------------
+# Stage 1: Code Security Scanning
+# ------------------------------------------------
+- stage: CodeSecurityScanning
+  displayName: Code Security & Compliance Scanning
+  jobs:
+    - job: SecurityScans
+      displayName: Run IaC Security Scans
+      steps:
+
+        - task: tfsec@1
+          displayName: Run tfsec Scan
+          inputs:
+            version: 'v1.26.0'
+            dir: '$(System.DefaultWorkingDirectory)'
+
+        - task: PowerShell@2
+          displayName: Run Checkov Scan
+          continueOnError: true
+          inputs:
+            targetType: inline
+            script: |
+              checkov -d "$(System.DefaultWorkingDirectory)" -o junitxml > checkov-results.xml
+
+        - task: PublishTestResults@2
+          displayName: Publish Checkov Results
+          inputs:
+            testResultsFormat: JUnit
+            testResultsFiles: checkov-results.xml
+            testRunTitle: Checkov-IaC-Scan
+
+        - task: PowerShell@2
+          displayName: Run Terrascan
+          continueOnError: true
+          inputs:
+            targetType: inline
+            script: |
+              terrascan scan -d "$(System.DefaultWorkingDirectory)" -o junit-xml > terrascan-results.xml
+
+        - task: PublishTestResults@2
+          displayName: Publish Terrascan Results
+          inputs:
+            testResultsFormat: JUnit
+            testResultsFiles: terrascan-results.xml
+            testRunTitle: Terrascan-IaC-Scan
+
+# ------------------------------------------------
+# Stage 2: Terraform Init, Validate & Plan
+# ------------------------------------------------
+- stage: Terraform_Init_Validate_Plan
+  displayName: Terraform Init, Validate & Plan
+  dependsOn: CodeSecurityScanning
+  jobs:
+    - job: TerraformPlan
+      displayName: Terraform Planning
+      steps:
+
+        - task: TerraformInstaller@1
+          displayName: Install Terraform
+          inputs:
+            terraformVersion: latest
+
+        - task: TerraformTask@5
+          displayName: Terraform Init
+          inputs:
+            provider: azurerm
+            command: init
+            workingDirectory: $(Work_Dir)
+            backendServiceArm: $(Service_Connection)
+            backendAzureRmStorageAccountName: meranoonestorage
+            backendAzureRmContainerName: statecontaienr
+            backendAzureRmKey: my.tfstate
+
+        - task: TerraformTask@5
+          displayName: Terraform Validate
+          inputs:
+            provider: azurerm
+            command: validate
+            workingDirectory: $(Work_Dir)
+
+        - task: TerraformTask@5
+          displayName: Terraform Plan
+          inputs:
+            provider: azurerm
+            command: plan
+            workingDirectory: $(Work_Dir)
+            environmentServiceNameAzureRM: $(Service_Connection)
+
+# ------------------------------------------------
+# Stage 3: Manual Approval
+# ------------------------------------------------
+- stage: Manual_Approval
+  displayName: Manual Approval Required
+  dependsOn: Terraform_Init_Validate_Plan
+  jobs:
+    - job: Approval
+      displayName: Wait for Manual Approval
+      pool: server
+      steps:
+        - task: ManualValidation@0
+          inputs:
+            notifyUsers: |
+              s03g99@gmail.com
+            instructions: |
+              Please review the Terraform plan output and approve to proceed with Terraform Apply.
+            onTimeout: reject
+            timeoutInMinutes: 1440   # 24 hours
+
+# # ------------------------------------------------
+# # Stage 4: Terraform Apply
+# # ------------------------------------------------
+# - stage: Terraform_Apply
+#   displayName: Terraform Apply
+#   dependsOn: Manual_Approval
+#   jobs:
+#     - job: TerraformApply
+#       displayName: Apply Terraform Changes
+#       steps:
+
+#         - task: TerraformInstaller@1
+#           displayName: Install Terraform
+#           inputs:
+#             terraformVersion: latest
+
+        # - task: TerraformTask@5
+        #   displayName: Terraform Apply
+        #   inputs:
+        #     provider: azurerm
+        #     command: apply
+        #     workingDirectory: $(Work_Dir)
+        #     environmentServiceNameAzureRM: $(Service_Connection)
+        #     commandOptions: -auto-approve
