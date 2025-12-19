@@ -1,33 +1,21 @@
-# ===============================
-# Pipeline Triggers
-# ===============================
 trigger: none
 
-pr:
-  branches:
-    include:
-      - main
-      - develop
+# pr:
+#   branches:
+#     include:
+#       - main
+#       - features/*
 
-# ===============================
-# Agent Pool
-# ===============================
 pool:
   name: infrapool
 
-# ===============================
-# Variables
-# ===============================
 variables:
   - name: Work_Dir
-    value: '$(System.DefaultWorkingDirectory)/parent_modules'
+    value: '$(System.DefaultWorkingDirectory)/linuxvm/parent_module'
 
   - name: Service_Connection
     value: infraconnection
 
-# ===============================
-# Stages
-# ===============================
 stages:
 
 # ------------------------------------------------
