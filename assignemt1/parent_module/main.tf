@@ -65,7 +65,7 @@ module "linuxvmmodule" {
 
 module "storagecontainermodule" {
   depends_on = [ module.storagemodule ]
-source = "../child_module/Azurerm_storage_container"
+source = "../child_module/Azurerm_Storage_Container"
   container_child = { for k, v in var.container_parent : k => merge(v, { storage_account_id = lookup(module.storagemodule.storage_account_ids, v.storage_account_id, v.storage_account_id), storage_account_name = lookup(module.storagemodule.storage_account_names, v.storage_account_id, v.storage_account_id) }) }
 }
 
