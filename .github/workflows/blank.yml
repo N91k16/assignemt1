@@ -18,12 +18,16 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+        working-directory: ./assignemt1/parent_module
 
       - name: Terraform Validate
         run: terraform validate
+        working-directory: ./assignemt1/parent_module
 
       - name: Terraform Plan
         run: terraform plan
+        working-directory: ./assignemt1/parent_module
 
       - name: Terraform Apply
+        working-directory: ./assignemt1/parent_module
         run: terraform apply -auto-approve
